@@ -67,7 +67,7 @@
         <p id="auth-subtitle" class="text-sm text-slate-500 dark:text-slate-400 mt-1 text-center">스마트한 대입 생기부와 성적 추이 분석 관리</p>
       </div>
 
-      <!-- 에러/성공 피드백 메시지 바 -->
+      <!-- 에러/성공 피드백 메시지 바 (상세 디버그 메시지 표시 목적) -->
       <div id="auth-alert" class="flex items-start gap-2 rounded-lg p-3 text-xs mb-4 hidden">
         <i data-lucide="alert-circle" class="h-4 w-4 shrink-0 mt-0.5"></i>
         <span id="auth-alert-text"></span>
@@ -116,7 +116,7 @@
 
       <div class="mt-6 text-center text-xs">
         <p id="switch-view-text" class="text-slate-500 dark:text-slate-400">
-          아직 계정이 없으신가요? <button id="switch-auth-mode" class="text-blue-500 font-bold hover:underline">회원가입</button>
+          아직 계정이 없으신가요? <button id="switch-auth-mode" class="text-blue-500 font-bold hover:underline" type="button">회원가입</button>
         </p>
       </div>
     </div>
@@ -1972,7 +1972,9 @@
             } catch (signupErr) {}
           }
         }
-        showAuthAlert('error', getErrorMessage(err.code));
+        // 에러 상세 코드를 화면에 같이 표기하여 원인 확인을 극대화
+        showAuthAlert('error', `${getErrorMessage(err.code)} (상세 코드: ${err.code})`);
+        console.error("Firebase Auth Error:", err);
       }
     }
 
@@ -2075,12 +2077,6 @@
         submitBtn.textContent = '재설정 메일 발송';
         switchText.innerHTML = `기존 계정으로 돌아가기 <button id="switch-auth-mode" class="text-blue-500 font-bold hover:underline" type="button">로그인 하기</button>`;
       }
-
-      // 이벤트 위임 처리 바인딩 유지
-      document.getElementById('switch-auth-mode').addEventListener('click', () => {
-        if (state.view === 'login') switchAuthLayout('signup');
-        else switchAuthLayout('login');
-      });
     }
 
     // ==========================================
@@ -2154,6 +2150,14 @@
       document.getElementById('save-cloud-btn').addEventListener('click', saveToCloud);
       document.getElementById('go-reset-btn').addEventListener('click', () => switchAuthLayout('forgotPassword'));
       
+      // [개선]: 이벤트 위임(Event Delegation) 처리로 화면 전환 이벤트 리스너 파괴 방지
+      document.getElementById('switch-view-text').addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'switch-auth-mode') {
+          if (state.view === 'login') switchAuthLayout('signup');
+          else switchAuthLayout('login');
+        }
+      });
+
       // 모달 단일 버블링 바인딩
       document.getElementById('modal-confirm-btn').addEventListener('click', () => {
         document.getElementById('custom-modal').classList.add('hidden');
@@ -2344,6 +2348,10 @@
           return '비밀번호는 최소 6자 이상으로 설정해야 합니다.';
         case 'auth/invalid-email':
           return '유효하지 않은 이메일 형식입니다.';
+        case 'auth/unauthorized-domain':
+          return '승인되지 않은 도메인입니다. Firebase 콘솔 설정이 필요합니다.';
+        case 'auth/operation-not-allowed':
+          return '로그인 제공업체가 활성화되지 않았습니다. Firebase Authentication 설정을 확인하세요.';
         default:
           return '인증 처리 도중 예기치 못한 오류가 발생했습니다.';
       }
