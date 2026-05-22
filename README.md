@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="ko" class="light">
 <head>
@@ -2335,4 +2334,3 @@
 </body>
 </html>
 
-```
