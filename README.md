@@ -2330,6 +2330,24 @@
         if (themeIcon) themeIcon.setAttribute('data-lucide', 'moon');
       }
     })();
+
+    // 에러 코드 파서
+    function getErrorMessage(code) {
+      switch (code) {
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          return '이메일 혹은 비밀번호가 일치하지 않습니다.';
+        case 'auth/email-already-in-use':
+          return '이미 가입된 이메일 주소입니다.';
+        case 'auth/weak-password':
+          return '비밀번호는 최소 6자 이상으로 설정해야 합니다.';
+        case 'auth/invalid-email':
+          return '유효하지 않은 이메일 형식입니다.';
+        default:
+          return '인증 처리 도중 예기치 못한 오류가 발생했습니다.';
+      }
+    }
   </script>
 </body>
 </html>
