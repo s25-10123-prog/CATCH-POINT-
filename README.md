@@ -21,11 +21,18 @@
             }
         }
     </script>
-    <!-- React & ReactDOM CDN -->
+    <!-- React & ReactDOM CDN (v18) -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
     <!-- Babel CDN (For JSX compilation in browser) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase SDK v10 (Compatibility 번들로 브라우저 로딩 순서 보장) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
     <style>
         /* 기본 스크롤바 커스텀 */
         ::-webkit-scrollbar {
@@ -47,42 +54,6 @@
 <body class="bg-slate-50 dark:bg-slate-955 text-slate-800 dark:text-slate-100 transition-colors duration-300 min-h-screen">
     <div id="root"></div>
 
-    <!-- Firebase SDK v11 (ES Modules) -->
-    <script type="module" babel-target="true">
-        import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { 
-            getAuth, 
-            createUserWithEmailAndPassword, 
-            signInWithEmailAndPassword, 
-            onAuthStateChanged, 
-            signOut,
-            signInWithCustomToken,
-            signInAnonymously,
-            setPersistence,
-            browserLocalPersistence,
-            browserSessionPersistence
-        } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        import { 
-            getFirestore, 
-            doc, 
-            setDoc, 
-            onSnapshot,
-            collection,
-            query,
-            getDocs,
-            addDoc,
-            deleteDoc
-        } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-
-        // 글로벌 변수로 Firebase 모듈 바인딩 (Babel Script와 연동 목적)
-        window.FirebaseSDK = {
-            initializeApp, getApps, getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-            onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously, setPersistence,
-            browserLocalPersistence, browserSessionPersistence, getFirestore, doc, setDoc, onSnapshot,
-            collection, query, getDocs, addDoc, deleteDoc
-        };
-    </script>
-
     <!-- React App JSX Script -->
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
@@ -98,54 +69,59 @@
             measurementId: "G-LJ6GL7YWVX"
         };
 
+        // 안전하게 Firebase 초기화 진행
         let app, auth, db;
-        const appId = 'student-record-app';
+        try {
+            if (window.firebase && window.firebase.apps.length === 0) {
+                app = window.firebase.initializeApp(firebaseConfig);
+            } else if (window.firebase) {
+                app = window.firebase.app();
+            }
+            if (app) {
+                auth = window.firebase.auth();
+                db = window.firebase.firestore();
+            }
+        } catch (e) {
+            console.error("Firebase 초기화 중 에러 발생:", e);
+        }
 
-        // Firebase 비동기 초기화 보장 헬퍼
-        const initFirebase = () => {
-            if (!window.FirebaseSDK) return false;
-            const { initializeApp, getApps, getAuth, getFirestore } = window.FirebaseSDK;
-            app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-            auth = getAuth(app);
-            db = getFirestore(app);
-            return true;
-        };
+        const appId = 'student-record-app';
 
         // ==========================================================
         // [수동 인라인 SVG 아이콘 컴포넌트 - lucide 의존성 완화]
         // ==========================================================
         const SvgIcon = ({ name, className = "w-5 h-5" }) => {
             const icons = {
-                'file-text': <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>,
-                'award': <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>,
-                'activity': <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>,
-                'book-marked': <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10M6 10h10"/>,
-                'graduation-cap': <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/>,
-                'search': <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>,
-                'x': <path d="M18 6 6 18M6 6l12 12"/>,
-                'check': <path d="M20 6 9 17l-5-5"/>,
-                'brain-circuit': <path d="M12 2v3M19 9h3M3 9h3M12 19v3M19 15h3M3 15h3M6.5 6.5l2 2M15.5 15.5l2 2M15.5 6.5l2-2M6.5 15.5l2-2"/>,
-                'refresh-cw': <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>,
-                'sparkles': <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/>,
-                'settings': <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>,
-                'moon': <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>,
-                'sun': <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>,
-                'alert-circle': <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>,
-                'edit-3': <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>,
-                'users': <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>,
-                'hash': <line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>,
-                'lock-keyhole': <circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/>,
-                'door-open': <path d="M13 4h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6M2 20h9M3 20V6a2 2 0 0 1 2-2h4v16"/>,
-                'message-square': <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>,
-                'eye': <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>,
-                'eye-off': <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20"/>,
-                'spell-check': <path d="m6 16 6-12 6 12M8 12h8M16 20l2 2 4-4"/>,
-                'logout': <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>,
-                'save': <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>,
-                'plus': <line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/>,
-                'trash-2': <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>,
-                'send': <line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>,
-                'rotate-ccw': <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/>
+                'file-text': <g><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></g>,
+                'award': <g><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></g>,
+                'activity': <g><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></g>,
+                'book-marked': <g><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10M6 10h10"/></g>,
+                'graduation-cap': <g><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></g>,
+                'search': <g><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></g>,
+                'x': <g><path d="M18 6 6 18M6 6l12 12"/></g>,
+                'check': <g><path d="M20 6 9 17l-5-5"/></g>,
+                'brain-circuit': <g><path d="M12 2v3M19 9h3M3 9h3M12 19v3M19 15h3M3 15h3M6.5 6.5l2 2M15.5 15.5l2 2M15.5 6.5l2-2M6.5 15.5l2-2"/></g>,
+                'refresh-cw': <g><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></g>,
+                'sparkles': <g><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/></g>,
+                'settings': <g><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g>,
+                'moon': <g><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></g>,
+                'sun': <g><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></g>,
+                'alert-circle': <g><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></g>,
+                'edit-3': <g><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></g>,
+                'users': <g><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></g>,
+                'hash': <g><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></g>,
+                'lock-keyhole': <g><circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></g>,
+                'door-open': <g><path d="M13 4h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6M2 20h9M3 20V6a2 2 0 0 1 2-2h4v16"/></g>,
+                'message-square': <g><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></g>,
+                'eye': <g><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></g>,
+                'eye-off': <g><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20"/></g>,
+                'spell-check': <g><path d="m6 16 6-12 6 12M8 12h8M16 20l2 2 4-4"/></g>,
+                'logout': <g><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></g>,
+                'save': <g><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></g>,
+                'plus': <g><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></g>,
+                'trash-2': <g><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></g>,
+                'send': <g><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></g>,
+                'rotate-ccw': <g><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/></g>
             };
 
             return (
@@ -311,7 +287,6 @@
         };
 
         function App() {
-            const [sdkReady, setSdkReady] = useState(false);
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [isTransitioning, setIsTransitioning] = useState(false);
@@ -382,20 +357,6 @@
             const canvasRef = useRef(null);
             const chatEndRef = useRef(null);
 
-            // SDK 대기 폴링 및 테마 세팅
-            useEffect(() => {
-                const checkSDK = setInterval(() => {
-                    if (window.FirebaseSDK) {
-                        const ready = initFirebase();
-                        if (ready) {
-                            setSdkReady(true);
-                            clearInterval(checkSDK);
-                        }
-                    }
-                }, 100);
-                return () => clearInterval(checkSDK);
-            }, []);
-
             useEffect(() => {
                 if (isDarkMode) {
                     document.documentElement.classList.add('dark');
@@ -435,10 +396,12 @@
                 return byteLength;
             };
 
-            // Firebase 인증 초기화 및 상태 구독
+            // Firebase 인증 상태 구독
             useEffect(() => {
-                if (!sdkReady) return;
-                const { onAuthStateChanged, signInWithCustomToken, signInAnonymously } = window.FirebaseSDK;
+                if (!auth) {
+                    setLoading(false);
+                    return;
+                }
 
                 const initAuth = async () => {
                     try {
@@ -450,14 +413,14 @@
                         }
 
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
+                            await auth.signInWithCustomToken(__initial_auth_token);
                         } else {
-                            await signInAnonymously(auth);
+                            await auth.signInAnonymously();
                         }
                     } catch (err) {
                         console.warn("인증 처리 대체 시도:", err);
                         try {
-                            await signInAnonymously(auth);
+                            await auth.signInAnonymously();
                         } catch (anonErr) {
                             console.error("익명 대체 로그인 실패", anonErr);
                         }
@@ -467,7 +430,7 @@
                 };
                 initAuth();
 
-                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                const unsubscribe = auth.onAuthStateChanged((currentUser) => {
                     setUser(currentUser);
                     setLoading(false);
                     if (currentUser) {
@@ -483,7 +446,7 @@
                     }
                 });
                 return () => unsubscribe();
-            }, [sdkReady]);
+            }, []);
 
             useEffect(() => {
                 if (user) {
@@ -758,13 +721,12 @@
 
             // 클라우드 저장
             const saveToCloud = async () => {
-                if (!user || !sdkReady) return;
-                const { doc, setDoc } = window.FirebaseSDK;
+                if (!user || !db) return;
                 setSaveStatus('saving');
                 try {
-                    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'records', `grade_${grade}`);
+                    const docRef = db.doc(`artifacts/${appId}/users/${user.uid}/records/grade_${grade}`);
                     const dataToSave = allGradesData[grade];
-                    await setDoc(docRef, {
+                    await docRef.set({
                         fixed: dataToSave.fixed || {},
                         subjects: dataToSave.subjects || [],
                         grades: dataToSave.grades || {},
@@ -772,8 +734,8 @@
                         lastUpdated: new Date().toISOString()
                     });
 
-                    const metaRef = doc(db, 'artifacts', appId, 'public', 'data', 'all_member_grades', user.uid);
-                    await setDoc(metaRef, {
+                    const metaRef = db.doc(`artifacts/${appId}/public/data/all_member_grades/${user.uid}`);
+                    await metaRef.set({
                         userId: user.uid,
                         customId: customId || (user.email ? user.email.split('@')[0] : '익명학생'),
                         shareGrades: shareGrades,
@@ -798,12 +760,11 @@
 
             // Firestore 실시간 모니터링
             useEffect(() => {
-                if (!user || isTransitioning || !sdkReady) return;
-                const { doc, setDoc, onSnapshot } = window.FirebaseSDK;
+                if (!user || isTransitioning || !db) return;
 
-                const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'settings');
-                const unsubProfile = onSnapshot(profileRef, (snap) => {
-                    if (snap.exists()) {
+                const profileRef = db.doc(`artifacts/${appId}/users/${user.uid}/profile/settings`);
+                const unsubProfile = profileRef.onSnapshot((snap) => {
+                    if (snap.exists) {
                         const data = snap.data();
                         setCustomId(data.customId || '');
                         setShareGrades(!!data.shareGrades);
@@ -818,9 +779,9 @@
                 });
 
                 const unsubscribes = ['1', '2', '3'].map((g) => {
-                    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'records', `grade_${g}`);
-                    return onSnapshot(docRef, (docSnap) => {
-                        if (docSnap.exists()) {
+                    const docRef = db.doc(`artifacts/${appId}/users/${user.uid}/records/grade_${g}`);
+                    return docRef.onSnapshot((docSnap) => {
+                        if (docSnap.exists) {
                             const data = docSnap.data();
                             setAllGradesData(prev => ({
                                 ...prev,
@@ -867,14 +828,13 @@
                     unsubProfile();
                     unsubscribes.forEach(unsub => unsub());
                 };
-            }, [user, grade, isTransitioning, sdkReady]);
+            }, [user, grade, isTransitioning]);
 
             const saveProfileSettings = async (newId, newShare) => {
-                if (!user || !sdkReady) return;
-                const { doc, setDoc } = window.FirebaseSDK;
+                if (!user || !db) return;
                 try {
-                    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'settings');
-                    await setDoc(profileRef, {
+                    const profileRef = db.doc(`artifacts/${appId}/users/${user.uid}/profile/settings`);
+                    await profileRef.set({
                         customId: newId,
                         shareGrades: newShare,
                         userId: user.uid,
@@ -882,8 +842,8 @@
                         lastUpdated: new Date().toISOString()
                     }, { merge: true });
 
-                    const metaRef = doc(db, 'artifacts', appId, 'public', 'data', 'all_member_grades', user.uid);
-                    await setDoc(metaRef, {
+                    const metaRef = db.doc(`artifacts/${appId}/public/data/all_member_grades/${user.uid}`);
+                    await metaRef.set({
                         userId: user.uid,
                         customId: newId,
                         shareGrades: newShare,
@@ -904,8 +864,7 @@
 
             const handleAuthAction = async (e, actionType) => {
                 e.preventDefault();
-                if (!sdkReady) return;
-                const { createUserWithEmailAndPassword, signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } = window.FirebaseSDK;
+                if (!auth) return;
                 setMessage({ type: '', text: '' });
 
                 const finalEmail = processEmailInput(email);
@@ -925,15 +884,12 @@
                         }
                     }
 
-                    const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-                    await setPersistence(auth, persistenceType);
-
                     if (actionType === 'signup') {
                         if (password.length < 6) {
                             setMessage({ type: 'error', text: '비밀번호는 최소 6자 이상이어야 합니다.' });
                             return;
                         }
-                        await createUserWithEmailAndPassword(auth, finalEmail, password);
+                        await auth.createUserWithEmailAndPassword(finalEmail, password);
                         setMessage({ type: 'success', text: '성공적으로 가입되었습니다! 로그인 중입니다...' });
                     } else if (actionType === 'login') {
                         setActiveRoom(null);
@@ -942,15 +898,15 @@
                         setRoomUsersData([]);
                         setActiveTab('record');
                         
-                        await signInWithEmailAndPassword(auth, finalEmail, password);
+                        await auth.signInWithEmailAndPassword(finalEmail, password);
                     }
                 } catch (err) {
                     if (actionType === 'login' && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password')) {
                         if (email.trim() === 'admin' || email.trim() === 'admin@admin.com') {
                             try {
                                 setMessage({ type: 'success', text: '관리자 데모 계정을 생성 중입니다...' });
-                                await createUserWithEmailAndPassword(auth, 'admin@admin.com', 'admin09');
-                                await signInWithEmailAndPassword(auth, 'admin@admin.com', 'admin09');
+                                await auth.createUserWithEmailAndPassword('admin@admin.com', 'admin09');
+                                await auth.signInWithEmailAndPassword('admin@admin.com', 'admin09');
                                 return;
                             } catch (signUpErr) {
                                 console.error("데모계정 생성 실패", signUpErr);
@@ -962,8 +918,7 @@
             };
 
             const handleDemoLogin = async () => {
-                if (!sdkReady) return;
-                const { signInWithEmailAndPassword, createUserWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } = window.FirebaseSDK;
+                if (!auth) return;
                 setMessage({ type: '', text: '' });
                 setEmail('admin');
                 setPassword('admin09');
@@ -975,14 +930,12 @@
                 setActiveTab('record');
 
                 try {
-                    const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-                    await setPersistence(auth, persistenceType);
-                    await signInWithEmailAndPassword(auth, 'admin@admin.com', 'admin09');
+                    await auth.signInWithEmailAndPassword('admin@admin.com', 'admin09');
                 } catch (err) {
                     if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
                         try {
-                            await createUserWithEmailAndPassword(auth, 'admin@admin.com', 'admin09');
-                            await signInWithEmailAndPassword(auth, 'admin@admin.com', 'admin09');
+                            await auth.createUserWithEmailAndPassword('admin@admin.com', 'admin09');
+                            await auth.signInWithEmailAndPassword('admin@admin.com', 'admin09');
                         } catch (createErr) {
                             setMessage({ type: 'error', text: '데모 계정 생성 오류: ' + createErr.message });
                         }
@@ -993,8 +946,7 @@
             };
 
             const handleLogout = async () => {
-                if (!sdkReady) return;
-                const { signOut } = window.FirebaseSDK;
+                if (!auth) return;
                 try {
                     setUser(null);
                     setActiveRoom(null);
@@ -1013,9 +965,9 @@
                     setPassword('');
                     setView('login');
                     setMessage({ type: 'success', text: '안전하게 로그아웃 되었습니다.' });
-                    await signOut(auth);
+                    await auth.signOut();
                 } catch (err) {
-                    console.error("비동기 로그아웃 실패", err);
+                    console.error("로그아웃 실패", err);
                     setUser(null);
                     setView('login');
                 }
@@ -1166,14 +1118,13 @@
 
             // 그룹방 찾기
             const handleSearchRooms = async () => {
-                if (!searchCategory.trim() || !sdkReady) return;
-                const { collection, getDocs } = window.FirebaseSDK;
+                if (!searchCategory.trim() || !db) return;
                 setRoomSearchStatus('searching');
                 setMatchingRooms([]);
 
                 try {
-                    const roomsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
-                    const querySnap = await getDocs(roomsColRef);
+                    const roomsColRef = db.collection(`artifacts/${appId}/public/data/rooms`);
+                    const querySnap = await roomsColRef.get();
                     
                     const rooms = [];
                     querySnap.forEach((doc) => {
@@ -1194,11 +1145,10 @@
             // 방 생성
             const handleCreateRoom = async (e) => {
                 e.preventDefault();
-                if (!groupCategory.trim() || !groupName.trim() || !groupPassword.trim() || !user || !sdkReady) {
+                if (!groupCategory.trim() || !groupName.trim() || !groupPassword.trim() || !user || !db) {
                     setMessage({ type: 'error', text: '방 개설 정보를 모두 기입해 주세요.' });
                     return;
                 }
-                const { collection, addDoc, doc, setDoc } = window.FirebaseSDK;
 
                 try {
                     const roomPayload = {
@@ -1210,18 +1160,18 @@
                         createdAt: new Date().toISOString()
                     };
 
-                    const roomsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
-                    const docRef = await addDoc(roomsColRef, roomPayload);
+                    const roomsColRef = db.collection(`artifacts/${appId}/public/data/rooms`);
+                    const docRef = await roomsColRef.add(roomPayload);
 
                     const newRoom = { id: docRef.id, ...roomPayload };
                     setActiveRoom(newRoom);
                     
                     setJoinedRoomId(newRoom.id);
-                    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'settings');
-                    await setDoc(profileRef, { joinedRoomId: newRoom.id }, { merge: true });
+                    const profileRef = db.doc(`artifacts/${appId}/users/${user.uid}/profile/settings`);
+                    await profileRef.set({ joinedRoomId: newRoom.id }, { merge: true });
 
-                    const metaRef = doc(db, 'artifacts', appId, 'public', 'data', 'all_member_grades', user.uid);
-                    await setDoc(metaRef, { 
+                    const metaRef = db.doc(`artifacts/${appId}/public/data/all_member_grades/${user.uid}`);
+                    await metaRef.set({ 
                         joinedRoomId: newRoom.id,
                         gpa1: calculateGPAByGrade('1').average9,
                         gpa2: calculateGPAByGrade('2').average9,
@@ -1248,17 +1198,16 @@
                     setTimeout(() => setMessage({ type: '', text: '' }), 3000);
                     return;
                 }
-                if (!sdkReady) return;
-                const { doc, setDoc } = window.FirebaseSDK;
+                if (!db) return;
 
                 setActiveRoom(targetRoom);
                 setJoinedRoomId(targetRoom.id);
                 if (user) {
-                    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'settings');
-                    await setDoc(profileRef, { joinedRoomId: targetRoom.id }, { merge: true });
+                    const profileRef = db.doc(`artifacts/${appId}/users/${user.uid}/profile/settings`);
+                    await profileRef.set({ joinedRoomId: targetRoom.id }, { merge: true });
 
-                    const metaRef = doc(db, 'artifacts', appId, 'public', 'data', 'all_member_grades', user.uid);
-                    await setDoc(metaRef, { 
+                    const metaRef = db.doc(`artifacts/${appId}/public/data/all_member_grades/${user.uid}`);
+                    await metaRef.set({ 
                         joinedRoomId: targetRoom.id,
                         gpa1: calculateGPAByGrade('1').average9,
                         gpa2: calculateGPAByGrade('2').average9,
@@ -1274,8 +1223,7 @@
             };
 
             const handleDeleteRoom = async () => {
-                if (!activeRoom || !user || !sdkReady) return;
-                const { doc, setDoc, deleteDoc } = window.FirebaseSDK;
+                if (!activeRoom || !user || !db) return;
                 
                 if (activeRoom.creatorId !== user.uid) {
                     alert("방 개설자 본인만 이 그룹방을 삭제할 수 있습니다.");
@@ -1284,14 +1232,14 @@
 
                 try {
                     setJoinedRoomId('');
-                    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'settings');
-                    await setDoc(profileRef, { joinedRoomId: '' }, { merge: true });
+                    const profileRef = db.doc(`artifacts/${appId}/users/${user.uid}/profile/settings`);
+                    await profileRef.set({ joinedRoomId: '' }, { merge: true });
 
-                    const metaRef = doc(db, 'artifacts', appId, 'public', 'data', 'all_member_grades', user.uid);
-                    await setDoc(metaRef, { joinedRoomId: '' }, { merge: true });
+                    const metaRef = db.doc(`artifacts/${appId}/public/data/all_member_grades/${user.uid}`);
+                    await metaRef.set({ joinedRoomId: '' }, { merge: true });
 
-                    const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', activeRoom.id);
-                    await deleteDoc(roomDocRef);
+                    const roomDocRef = db.doc(`artifacts/${appId}/public/data/rooms/${activeRoom.id}`);
+                    await roomDocRef.delete();
 
                     setActiveRoom(null);
                     setChatMessages([]);
@@ -1315,18 +1263,17 @@
             };
 
             const handleExitActiveRoom = async () => {
-                if (!activeRoom || !user || !sdkReady) return;
-                const { doc, setDoc } = window.FirebaseSDK;
+                if (!activeRoom || !user || !db) return;
                 setActiveRoom(null);
                 setChatMessages([]);
                 setJoinedRoomId('');
                 
                 try {
-                    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'settings');
-                    await setDoc(profileRef, { joinedRoomId: '' }, { merge: true });
+                    const profileRef = db.doc(`artifacts/${appId}/users/${user.uid}/profile/settings`);
+                    await profileRef.set({ joinedRoomId: '' }, { merge: true });
 
-                    const metaRef = doc(db, 'artifacts', appId, 'public', 'data', 'all_member_grades', user.uid);
-                    await setDoc(metaRef, { joinedRoomId: '' }, { merge: true });
+                    const metaRef = db.doc(`artifacts/${appId}/public/data/all_member_grades/${user.uid}`);
+                    await metaRef.set({ joinedRoomId: '' }, { merge: true });
                 } catch (e) {
                     console.warn("방 퇴장 실패:", e);
                 }
@@ -1334,13 +1281,12 @@
 
             // 자동 입장 복구
             useEffect(() => {
-                if (!user || !joinedRoomId || activeRoom || !sdkReady) return;
-                const { collection, getDocs } = window.FirebaseSDK;
+                if (!user || !joinedRoomId || activeRoom || !db) return;
 
                 const autoConnectRoom = async () => {
                     try {
-                        const roomsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
-                        const querySnap = await getDocs(roomsColRef);
+                        const roomsColRef = db.collection(`artifacts/${appId}/public/data/rooms`);
+                        const querySnap = await roomsColRef.get();
                         
                         let foundRoom = null;
                         querySnap.forEach((doc) => {
@@ -1350,7 +1296,7 @@
                         });
 
                         if (foundRoom) {
-                            const checkSnap = await getDocs(collection(db, 'artifacts', appId, 'users', user.uid, 'profile'));
+                            const checkSnap = await db.collection(`artifacts/${appId}/users/${user.uid}/profile`).get();
                             let actualDBJoinedRoomId = '';
                             checkSnap.forEach((d) => {
                                 if (d.id === 'settings') {
@@ -1371,15 +1317,14 @@
                     }
                 };
                 autoConnectRoom();
-            }, [user, joinedRoomId, activeRoom, sdkReady]);
+            }, [user, joinedRoomId, activeRoom]);
 
             // 실시간 리스너 구독
             useEffect(() => {
-                if (!user || !activeRoom || !sdkReady) return;
-                const { collection, onSnapshot, doc, setDoc } = window.FirebaseSDK;
+                if (!user || !activeRoom || !db) return;
 
-                const chatCol = collection(db, 'artifacts', appId, 'public', 'data', `chats_room_${activeRoom.id}`);
-                const unsubChat = onSnapshot(chatCol, (snap) => {
+                const chatCol = db.collection(`artifacts/${appId}/public/data/chats_room_${activeRoom.id}`);
+                const unsubChat = chatCol.onSnapshot((snap) => {
                     const msgs = [];
                     snap.forEach(doc => {
                         msgs.push({ id: doc.id, ...doc.data() });
@@ -1390,8 +1335,8 @@
                     console.error("채팅 로딩 실패:", error);
                 });
 
-                const roomsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
-                const unsubRoomsExist = onSnapshot(roomsColRef, (snap) => {
+                const roomsColRef = db.collection(`artifacts/${appId}/public/data/rooms`);
+                const unsubRoomsExist = roomsColRef.onSnapshot((snap) => {
                     let exist = false;
                     snap.forEach(d => {
                         if (d.id === activeRoom.id) exist = true;
@@ -1401,16 +1346,16 @@
                         setChatMessages([]);
                         setJoinedRoomId('');
                         
-                        const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'settings');
-                        setDoc(profileRef, { joinedRoomId: '' }, { merge: true }).catch(err => console.warn(err));
+                        const profileRef = db.doc(`artifacts/${appId}/users/${user.uid}/profile/settings`);
+                        profileRef.set({ joinedRoomId: '' }, { merge: true }).catch(err => console.warn(err));
 
-                        const metaRef = doc(db, 'artifacts', appId, 'public', 'data', 'all_member_grades', user.uid);
-                        setDoc(metaRef, { joinedRoomId: '' }, { merge: true }).catch(err => console.warn(err));
+                        const metaRef = db.doc(`artifacts/${appId}/public/data/all_member_grades/${user.uid}`);
+                        metaRef.set({ joinedRoomId: '' }, { merge: true }).catch(err => console.warn(err));
                     }
                 });
 
-                const gradesCol = collection(db, 'artifacts', appId, 'public', 'data', 'all_member_grades');
-                const unsubGrades = onSnapshot(gradesCol, (snap) => {
+                const gradesCol = db.collection(`artifacts/${appId}/public/data/all_member_grades`);
+                const unsubGrades = gradesCol.onSnapshot((snap) => {
                     const list = [];
                     snap.forEach(doc => {
                         const item = doc.data();
@@ -1428,7 +1373,7 @@
                     unsubRoomsExist();
                     unsubGrades();
                 };
-            }, [user, activeRoom, sdkReady]);
+            }, [user, activeRoom]);
 
             useEffect(() => {
                 if (chatEndRef.current) {
@@ -1438,12 +1383,11 @@
 
             const handleSendChatMessage = async (e) => {
                 e.preventDefault();
-                if (!inputChat.trim() || !activeRoom || !user || !sdkReady) return;
-                const { collection, addDoc } = window.FirebaseSDK;
+                if (!inputChat.trim() || !activeRoom || !user || !db) return;
 
                 try {
-                    const chatCol = collection(db, 'artifacts', appId, 'public', 'data', `chats_room_${activeRoom.id}`);
-                    await addDoc(chatCol, {
+                    const chatCol = db.collection(`artifacts/${appId}/public/data/chats_room_${activeRoom.id}`);
+                    await chatCol.add({
                         senderId: user.uid,
                         senderName: customId || '익명학생',
                         text: inputChat.trim(),
@@ -1585,12 +1529,12 @@
             const trendAnalysis = analyzeTrend(gradePoints9);
 
             // 대기화면 및 인스턴스 컴파일러 로딩바
-            if (!sdkReady || loading) {
+            if (loading) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-955 text-white">
                         <div className="flex flex-col items-center gap-3">
                             <div className="w-8 h-8 rounded-full border-4 border-blue-500/10 border-t-blue-600 animate-spin"></div>
-                            <p className="text-xs font-bold text-slate-400">시스템을 안전하게 호출 중입니다...</p>
+                            <p className="text-xs font-bold text-slate-400">시스템을 준비하는 중입니다...</p>
                         </div>
                     </div>
                 );
@@ -1828,7 +1772,7 @@
                                     </span>
                                 )}
                                 {saveStatus === 'success' && (
-                                    <span className="text-[11px] font-extrabold text-green-600 bg-green-50 dark:bg-green-950/30 px-3 py-1.5 rounded-xl border border-green-100 dark:border-green-900/50 flex items-center gap-1">
+                                    <span className="text-[11px] font-extrabold text-green-600 bg-green-50 dark:bg-green-955/30 px-3 py-1.5 rounded-xl border border-green-100 dark:border-green-900/50 flex items-center gap-1">
                                         <SvgIcon name="check" className="w-3.5 h-3.5" />
                                         클라우드 저장 및 백업 완료!
                                     </span>
@@ -1950,7 +1894,7 @@
                                                         <div className="flex items-center gap-3">
                                                             <div className={`text-[10px] font-black px-2 py-1 rounded-md border ${
                                                                 isWarning 
-                                                                    ? 'bg-red-50 dark:bg-red-950/20 text-red-500 border-red-100 dark:border-red-900/50 animate-pulse' 
+                                                                    ? 'bg-red-50 dark:bg-red-955/20 text-red-500 border-red-100 dark:border-red-900/50 animate-pulse' 
                                                                     : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
                                                             }`}>
                                                                 {currentCount} / {maxLimit}{byteCalcMode === 'char' ? '자' : 'Byte'}
@@ -2003,7 +1947,7 @@
                                                         </div>
                                                         <div className={`text-[10px] font-black px-2 py-1 rounded-md border ${
                                                             isWarning 
-                                                                ? 'bg-red-50 dark:bg-red-950/20 text-red-500 border-red-100 dark:border-red-900/50' 
+                                                                ? 'bg-red-50 dark:bg-red-955/20 text-red-500 border-red-100 dark:border-red-900/50' 
                                                                 : 'bg-slate-50 dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700'
                                                         }`}>
                                                             {currentCount} / {maxLimit}{byteCalcMode === 'char' ? '자' : 'Byte'}
@@ -2038,7 +1982,7 @@
                                             <p className="text-4xl font-black tracking-tight text-blue-600">{average9} <span className="text-xs text-slate-500 font-bold">등급</span></p>
                                             <p className="text-[10px] text-slate-400 font-bold">이수단위: {totalUnits9} 단위</p>
                                         </div>
-                                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-50 dark:bg-blue-950/30">
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-50 dark:bg-blue-955/30">
                                             <span className="text-lg font-black text-blue-600">9</span>
                                         </div>
                                     </div>
@@ -2052,7 +1996,7 @@
                                             <p className="text-4xl font-black tracking-tight text-indigo-600">{average5} <span className="text-xs text-slate-500 font-bold">등급</span></p>
                                             <p className="text-[10px] text-slate-400 font-bold">이수단위: {totalUnits5} 단위</p>
                                         </div>
-                                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-indigo-50 dark:bg-indigo-950/30">
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-indigo-50 dark:bg-indigo-955/30">
                                             <span className="text-lg font-black text-indigo-600">5</span>
                                         </div>
                                     </div>
@@ -2150,7 +2094,7 @@
                                                                 </td>
                                                                 <td className="py-4 px-2 text-center">
                                                                     {grade9 !== null ? (
-                                                                        <div className="inline-block px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-650 dark:text-blue-400 font-extrabold text-xs">
+                                                                        <div className="inline-block px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-955/30 text-blue-650 dark:text-blue-400 font-extrabold text-xs">
                                                                             {grade9}등급
                                                                             <span className="block text-[8px] font-semibold text-slate-400 mt-0.5">{percentage.toFixed(1)}%</span>
                                                                         </div>
@@ -2158,7 +2102,7 @@
                                                                 </td>
                                                                 <td className="py-4 px-2 text-center">
                                                                     {grade5 !== null ? (
-                                                                        <div className="inline-block px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs">
+                                                                        <div className="inline-block px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-955/30 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs">
                                                                             {grade5}등급
                                                                         </div>
                                                                     ) : '-'}
