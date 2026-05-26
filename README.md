@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="ko" class="">
 <head>
@@ -2483,3 +2484,6 @@
         root.render(<App />);
     </script>
 </body>
+</html>
+
+```
