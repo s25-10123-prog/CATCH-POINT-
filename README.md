@@ -2483,4 +2483,3 @@
         root.render(<App />);
     </script>
 </body>
-</html>
